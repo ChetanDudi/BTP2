@@ -1,0 +1,132 @@
+Install Mandatory Packages
+
+sudo apt install -y \
+git \
+curl \
+wget \
+net-tools \
+iproute2 \
+iptables \
+python3 \
+python3-pip \
+build-essential \
+cmake \
+linux-headers-$(uname -r)
+
+Install Docker (REQUIRED for OAI)
+
+curl -fsSL https://get.docker.com | sudo bash
+
+## Add yourself to docker group:
+sudo usermod -aG docker $USER
+newgrp docker
+
+#verify
+docker run hello-world
+
+## Install Docker Compose
+sudo apt install docker-compose-v2
+
+## verify docker compose
+docker compose version
+
+Disable Firewall (IMPORTANT)
+## OAI breaks if firewall is active.
+sudo ufw disable
+
+
+Clone OAI:
+
+git clone https://gitlab.eurecom.fr/oai/openairinterface5g.git
+
+Clone CN5G Repository
+
+cd ~/openairinterface5g
+git clone https://gitlab.eurecom.fr/oai/cn5g/oai-cn5g-fed.git
+
+
+
+docker compose -f docker-compose-basic-nrf.yaml up -d  // run 5g core
+
+Check:
+docker network ls
+Now you MUST see:
+demo-oai-public-net
+
+Create Only N3 Network
+docker network create \
+--subnet 192.168.71.0/24 \
+demo-oai-n3-net
+
+Verify:
+docker network ls
+Now you should see:
+demo-oai-public-net
+demo-oai-n3-net
+
+
+
+
+In rifsm file change the field external to true in both public and n3 networks at the bottom of the file:
+networks:
+  public_net:
+    external: true
+    name: demo-oai-public-net
+
+  n3_net:
+    external: true
+    name: demo-oai-n3-net
+
+// run RAN(UE + gnb)
+docker compose -f docker-compose-oai-rfsim-ebpf.yaml up -d
+
+docker compose -f docker-compose-basic-nrf.yaml down  // down 5g core
+docker compose -f docker-compose-oai-rfsim-ebpf.yaml down  // down RAN
+
+
+Check gNB Logs
+We will only look at logs, no changes.
+👉 Do only this:
+docker logs oai-gnb --tail 50
+
+Check UE Logs (RRC side)
+Now we confirm the UE side agrees.
+👉 Do only this (for one UE):
+docker logs oai-nr-ue1 --tail 50
+
+Check AMF Logs (Core ↔ RAN connection)
+👉 Do only this:
+docker logs oai-amf --tail 50
+
+
+## Check Running Containers
+docker ps
+
+
+
+CLEAN RESET PROCEDURE
+
+Change this:
+amf_ip_address:
+- ipv4: 192.168.70.132
+
+Replace with this:
+amf_ip_address:
+- ipv4: oai-amf
+
+
+CLEAN RESET PROCEDURE 
+
+docker compose -f docker-compose-oai-rfsim-ebpf.yaml down
+docker compose -f docker-compose-basic-nrf.yaml down
+docker network rm demo-oai-public-net
+docker network rm demo-oai-n3-net
+
+docker compose -f docker-compose-basic-nrf.yaml up -d
+
+docker network create --subnet 192.168.71.0/24 demo-oai-n3-netdocker compose -f docker-compose-oai-rfsim-ebpf.yaml up -d
+
+
+At specific docker bash(commands):
+
+docker exec -it oai-nr-ue1 bash
